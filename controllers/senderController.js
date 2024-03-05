@@ -22,7 +22,7 @@ exports.becomeDriver = catchAsync(async (req, res, next) => {
     userId,
     car,
   });
- 
+
   await driver.save()
 
   await Sender.deleteOne({ userId })
@@ -39,17 +39,23 @@ exports.requestOrder = catchAsync(async (req, res, next) => {
   const userId = req.user.userId;
   const location = req.body.location
 
+  // const orderEligibility = await Order.findOne({ userId: userId })
+  // if (orderEligibility) return res.status(401).json({ status: 'error', msg: "Can't make multiple orders at once"})
+
   const order = new Order({
+    userId,
     location,
 
   });
 
   await order.save();
 
-  await Sender.updateOne(
-    { _id: userId },
+ await Sender.updateOne(
+    { userId: userId },
     { $push: { requestOrder: order._id } }
   );
+
+
 
   cron.schedule("*/1 * * * *", async () => {
     const minute = moment().subtract(1, "minute");
@@ -70,7 +76,7 @@ exports.requestOrder = catchAsync(async (req, res, next) => {
     }
   });
 
-   const q = await Order.findOne({ _id: order._id })
+  const q = await Order.findOne({ _id: order._id })
 
-   res.status(200).json({ status: 'success', msg: "Order requested successfully", data: q })
+  res.status(200).json({ status: 'success', msg: "Order requested successfully", data: q })
 });
