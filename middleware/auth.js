@@ -31,7 +31,7 @@ const authenticate = catchAsync(async (req, res, next) => {
     // console.log(currentUser)
 
     if (!currentUser) {
-      return next(new AppError('User not found', 404))
+      return res.status(401).redirect("/views/login")
     }
 
     // If successful, grant access to protected route
@@ -40,7 +40,7 @@ const authenticate = catchAsync(async (req, res, next) => {
 
     next();
   } catch (err) {
-    return next(new AppError(401, 'Invalid token'));
+    return res.status(401).redirect("/views/login")
   }
 })
 
@@ -49,7 +49,7 @@ const auth = (req, res, next) => {
     if (req?.user) {
       next();
     } else {
-      return next(new AppError(403, 'Unauthorized'));
+      return res.status(401).redirect("/views/login")
     }
   })
 }
@@ -61,7 +61,7 @@ const authDriver = (req, res, next) => {
     if (req?.user?.role === 'driver') {
       next();
     } else {
-      return next(new AppError(403, 'Unauthorized'));
+      return res.status(401).redirect("/views/login")
     }
 
   })
@@ -74,7 +74,7 @@ const authSender = (req, res, next) => {
       next();
     } else {
      
-      return next(new AppError(403, 'Unauthorized'));
+      return res.status(401).redirect("/views/login");
     }
 
   })

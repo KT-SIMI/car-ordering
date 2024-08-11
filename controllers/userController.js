@@ -6,10 +6,17 @@ const Sender = require("../models/senderModel");
 const Driver = require("../models/driverModel");
 require("dotenv").config();
 
-exports.signUp = catchAsync(async (req, res, next) => {
-  const email = req.body.email;
-  const password = req.body.password;
-  const role = req.body.role;
+exports.getSignup = catchAsync(async (req, res) => {
+  res.render('signup')
+})
+
+exports.signUp = catchAsync(async (req, res) => {
+  const {
+    firstname,
+    lastname,
+    email,
+    password,
+    role } = req.body
 
   const hashedPassword = await bcrypt.hash(
     password,
@@ -17,6 +24,8 @@ exports.signUp = catchAsync(async (req, res, next) => {
   );
 
   const user = new User({
+    firstname,
+    lastname,
     email,
     password: hashedPassword,
     role,
@@ -27,7 +36,7 @@ exports.signUp = catchAsync(async (req, res, next) => {
   if (emailExists)
     return res
       .status(401)
-      .json({ status: "error", msg: "Email already exists" });
+      .redirect('/views/login');
 
   await user.save();
 
@@ -45,21 +54,23 @@ exports.signUp = catchAsync(async (req, res, next) => {
     await driver.save()
   }
 
-  const q = await User.findOne({ _id: user._id }, { password: 0 });
-
   res
     .status(200)
-    .json({ status: "success", msg: "Signed up successfully", data: q });
+    .redirect('/views/login');
 });
 
-exports.login = catchAsync(async (req, res, next) => {
+exports.getLogin = catchAsync(async (req, res) => {
+  res.render('login')
+})
+
+exports.login = catchAsync(async (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
 
   if (!email || !password) {
     return res
       .status(400)
-      .json({ status: "error", msg: "Please provide email and password" });
+      .render('/views/signup');
   }
 
   const user = await User.findOne({ email });
@@ -67,7 +78,7 @@ exports.login = catchAsync(async (req, res, next) => {
   if (!user) {
     return res
       .status(401)
-      .json({ status: "error", msg: "Invalid email and/or password" });
+      .render('/views/signup');
   }
 
   const isPasswordValid = bcrypt.compareSync(password, user.password);
@@ -75,19 +86,48 @@ exports.login = catchAsync(async (req, res, next) => {
   if (!isPasswordValid) {
     return res
       .status(401)
-      .json({ status: "error", msg: "Invalid email and/or password" });
+      .render('/views/signup');
   }
 
   const payload = { userId: user._id, role: user.role };
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: "400h",
+    expiresIn: "720h",
   });
 
   req.session.token = token;
 
-  const q = await User.findOne({ _id: user._id }, { password: 0 });
 
-  res
-    .status(200)
-    .json({ status: "success", msg: "Logged in successfully", data: q });
+  if (user.role === "driver") {
+    res
+      .status(200)
+      .redirect('/views/driver/');
+  } else {
+    res.status(200).redirect("/views/sender/")
+  }
+});
+
+
+exports.index = catchAsync(async (req, res) => {
+  const userId = req.user.userId
+
+  const q = await User.findOne({ _id: userId })
+
+  if (q === null) return res.status(401).redirect('/views/login')
+
+  if (q.role === "driver") return res.status(200).redirect("/views/driver/")
+
+  res.status(200).redirect("/views/sender/")
+})
+
+exports.getLogout = catchAsync(async (req, res) => {
+  req.session.token = null;
+  req.session.save(function (err) {
+    if (err) next(err);
+
+    req.session.regenerate(function (err) {
+      if (err) next(err);
+
+      res.redirect("/views/login");
+    });
+  });
 });

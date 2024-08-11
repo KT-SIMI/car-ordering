@@ -3,55 +3,161 @@ const Order = require("../models/orderModel");
 const User = require("../models/userModel");
 const catchAsync = require("../utils/catchAsync");
 
-exports.profile = catchAsync(async (req, res, next) => {
-    const UserId = req.user.userId
+exports.profile = catchAsync(async (req, res) => {
+    const UserId = req.user.userId;
 
-    const q = await User.findOne({ _id: UserId }, { password: 0 })
+    const user = await User.findOne({ _id: UserId }, { password: 0 });
 
-    res.status(200).json({ status: "success", msg: "Profile Gotten", data: q })
-})
+    if (user === null) return res.status(401).redirect("/views/login");
+
+    const driver = await Driver.findOne({ userId: UserId });
+    const rOrders = driver.rejectOrder;
+    const aOrders = driver.acceptOrder;
+
+    const rejectedOrders = [];
+    console.log(rejectedOrders)
+    const acceptedOrders = [];
+
+    for (const rOrder of rOrders) {
+        const rejectOrder = await Order.findOne({ _id: rOrder })
+
+        rejectedOrders.push(rejectOrder)
+    }
+
+    for (const aOrder of aOrders) {
+        const acceptedOrder = await Order.findOne({ _id: aOrder })
+
+        acceptedOrders.push(acceptedOrder)
+    }
+
+    const pendingOrders = await Order.find({ orderStatus: "pending" });
+
+    res
+        .status(200)
+        .render("driverindex", {
+            user,
+            driver,
+            rejectedOrders,
+            acceptedOrders,
+            pendingOrders
+        });
+});
+
+exports.getSingleOrder = catchAsync(async (req, res) => {
+    const userId = req.user.userId;
+    const orderId = req.params.id;
+
+    const q = await User.findOne({ _id: userId });
+    const order = await Order.findOne({ _id: orderId });
+
+    const sender = await User.findOne({ _id: order.userId });
+    const driver = await User.findOne({ _id: order.assignDriver });
+
+    res.status(200).render("order", { q, order, sender, driver });
+});
+
+exports.getAddCar = catchAsync(async (req, res, next) => {
+    const userId = req.user.userId;
+    const user = await User.findOne({ _id: userId }, { password: 0 })
+    const driver = await Driver.findOne({ userId })
+
+    res.status(200).render("addCar", { user, driver });
+});
 
 exports.addCar = catchAsync(async (req, res, next) => {
-    const userId = req.user.userId
-    const car = req.body.car
+    const userId = req.user.userId;
+    const car = req.body.car;
 
-    await Driver.updateOne({ userId: userId }, { car: car })
+    await Driver.updateOne({ userId: userId }, { car: car });
 
-    const q = await User.findOne({ _id: userId }, { password: 0 })
-
-    res.status(200).json({ status: 'success', msg: 'Car Added', data: q })
-})
+    res.status(200).redirect("/views/driver/");
+});
 
 exports.rejectOrder = catchAsync(async (req, res, next) => {
+    const userId = req.user.userId;
+    const orderId = req.params.orderId;
+
+    const orderExists = await Order.findOne({ _id: orderId });
+
+    if (!orderExists || orderExists.orderStatus === "accepted")
+        return res.status(400).redirect("/views/driver/");
+
+    await Order.updateOne({ _id: orderId }, { orderStatus: "rejected" });
+
+    await Driver.updateOne(
+        { userId },
+        { $push: { rejectOrder: orderId } }
+    );
+
+    res.status(200).redirect("/views/driver/");
+});
+
+exports.acceptOrder = catchAsync(async (req, res) => {
+    const userId = req.user.userId;
+    const orderId = req.params.orderId;
+
+    const orderExists = await Order.findOne({ _id: orderId });
+
+    if (!orderExists || orderExists.orderStatus === "accepted")
+        return res.status(400).redirect("/views/driver/");
+
+    await Order.updateOne({ _id: orderId }, { orderStatus: "accepted" });
+
+    await Driver.updateOne(
+        { userId },
+        { $push: { rejectOrder: orderId } }
+    );
+
+    res.status(200).redirect("/views/driver/");
+});
+
+
+exports.getReport = catchAsync(async (req, res, next) => {
     const userId = req.user.userId
-    const orderId = req.body.orderId
 
-    const orderExists = await Order.findOne({ _id: orderId })
+    const user = await User.findOne({ _id: userId })
+    const driver = await Driver.findOne({ userId })
 
-    if (!orderExists || orderExists.orderStatus == "accepted" || orderExists.orderStatus == "rejected") return res.status(400).json({ status: 'error', msg: "Order no longer exists" })
+    const aOrders = driver.acceptOrder
 
-    await Order.updateOne({ _id: orderId }, { orderStatus: "rejected" })
+    console.log(aOrders)
+    const rOrders = driver.rejectOrder
 
-    await Driver.updateOne({ userId: userId }, { $push: { rejectOrder: orderId } })
+    const acceptedOrders = []
+    const rejectedOrders = []
 
-    const q = await Order.findOne({ _id: orderId })
+    for (const orderId of aOrders) {
+        const acceptedOrder = await Order.findOne({ _id: orderId })
+        acceptedOrders.push(acceptedOrder)
+    }
 
-    res.status(200).json({ status: 'succes', msg: 'Order Rejected', data: q })
+    for (const orderId of rOrders) {
+        const rejectedOrder = await Order.findOne({ _id: orderId })
+        rejectedOrders.push(rejectedOrder)
+    }
+
+    res
+        .status(200)
+        .render("driver", {
+            user,
+            driver,
+            acceptedOrders,
+            rejectedOrders
+        })
+
 })
 
-exports.acceptOrder = catchAsync(async (req, res, next) => {
+exports.getSingleOrder = catchAsync(async (req, res) => {
     const userId = req.user.userId
-    const orderId = req.body.orderId
+    const orderId = req.params.orderId
 
-    const orderExists = await Order.findOne({ _id: orderId })
+    const user = await User.findOne({ _id: userId })
+    const order = await Order.findOne({ _id: orderId })
 
-    if (!orderExists || orderExists.orderStatus == "accepted" || orderExists.orderStatus == "rejected") return res.status(400).json({ status: 'error', msg: "Order no longer exists" })
+    const sender = await User.findOne({ userId: order.userId })
+    const driver = await User.findOne({ _id: order.assignDriver })
 
-    await Order.updateOne({ _id: orderId }, { orderStatus: "accepted", assignDriver: orderId })
+    res.status(200).render("order", { user, order, sender, driver })
 
-    await Driver.updateOne({ userId: userId }, { $push: { acceptOrder: orderId } })
 
-    const q = await Order.findOne({ _id: orderId })
-
-    res.status(200).json({ status: 'succes', msg: 'Order Accepted', data: q })
 })

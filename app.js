@@ -7,6 +7,7 @@ const { auth, authSender, authDriver } = require("./middleware/auth")
 const userRouter = require("./routes/userRouter")
 const driverRouter = require("./routes/driverRouter")
 const senderRouter = require("./routes/senderRouter")
+const path = require('path')
 require("dotenv").config();
 
 (async () => {
@@ -28,7 +29,7 @@ const sessOption = {
     // sameSite: "none",
     secure: false,
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, //3 days
+    maxAge: 200 * 60 * 60 * 1000, //3 days
   },
   resave: false,
   saveUninitialized: false,
@@ -46,14 +47,18 @@ const corsOptions = {
 };
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
+app.use(express.static(path.join(__dirname, "public")));
+app.set("Content-Type", "application/json");
 app.use(session(sessOption));
 app.use(cors(corsOptions));
+app.set("view engine", "ejs");
 
 
-app.use("/api", userRouter);
-app.use("/api/driver", authDriver, driverRouter)
-app.use("/api/sender", authSender, senderRouter)
+
+app.use("/views", userRouter);
+app.use("/views/driver", authDriver, driverRouter)
+app.use("/views/sender", authSender, senderRouter)
 
 
 const port = 3301;
