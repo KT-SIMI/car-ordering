@@ -60,6 +60,10 @@ app.use("/views", userRouter);
 app.use("/views/driver", authDriver, driverRouter)
 app.use("/views/sender", authSender, senderRouter)
 
+app.get("*", async (req, res) => {
+  res.redirect("/views/")
+})
+
 
 const port = 3301;
 app.listen(port, () => {
